@@ -1,0 +1,40 @@
+Frontend:
+-React
+-Tailwind
+-Zustand
+-DaisyUI
+
+Backend:
+-NodeJS
+-Express
+-MongoDB
+-SocketIO
+
+Autenticación: JWT
+
+Terminal:
+-cd frontend
+-npm create vite@latest . -> React, JavaScript
+-npm i react-router-dom (Paginacion) react-hot-toast (notificaciones)
+-npm install tailwindcss @tailwindcss/vite
+-npm i -D daisyui@latest-> @import "tailwindcss"; en index.css -> crear vite.config.js
+-npm i lucide-react
+-npm i socket.io-client
+
+-cd backend 
+-npm init -y
+-npm i express mongoose dotenv jsonwebtoken bcryptjs cookie-parser cloudinary socket.io
+-npm i cors
+
+package.json:
+    "scripts": {
+    "dev": "nodemon src/index.js"
+  },
+  "type": "module", -> Para utilizar export/import 
+
+  **Express** es un framework que proporciona características para construir la API de forma más rápida y sencill. Da rutas, middlewares, etc.
+
+Models-> Modelos para la BD
+user.model.js-> Datos para la BD
+
+ "react/prop-types": "off",-> En eslint.config.js
