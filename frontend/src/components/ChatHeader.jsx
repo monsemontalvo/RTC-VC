@@ -1,10 +1,19 @@
-import { X } from "lucide-react";
+import { Video, X } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
+import { useNavigate } from "react-router-dom"; // 2. Importar useNavigate
 
 const ChatHeader = () => {
   const { selectedUser, setSelectedUser } = useChatStore();
   const { onlineUsers } = useAuthStore();
+
+  const navigate = useNavigate(); // 2. Inicializar useNavigate
+
+  const handleStartCall = () => {
+    if (!selectedUser) return; // <-- CAMBIO AQUÍ
+    // Navegamos a la página de videollamada, pasando el ID del otro usuario
+    navigate(`/videocall/${selectedUser._id}`);
+  };
 
   return (
     <div className="p-2.5 border-b border-base-300">
@@ -26,10 +35,25 @@ const ChatHeader = () => {
           </div>
         </div>
 
-        {/* Close button */}
-        <button onClick={() => setSelectedUser(null)}>
-          <X />
-        </button>
+        {/* Close and Video Call buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleStartCall}
+            className='btn btn-ghost btn-circle'
+            title='Iniciar videollamada'
+          >
+            <Video className='w-6 h-6' />
+          </button>
+
+          <button
+            onClick={() => setSelectedUser(null)}
+            className='btn btn-ghost btn-circle'
+            title='Cerrar chat'
+          >
+            <X className='w-6 h-6' />
+          </button>
+
+        </div>
       </div>
     </div>
   );

@@ -7,21 +7,41 @@ import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import TasksPage from "./pages/TasksPage";
 import SimulationPage from "./pages/SimulationPage";
+import VideoCallPage from "./pages/VideoCallPage";
 
 import {Routes, Route, Navigate} from "react-router-dom";
 import {useAuthStore} from "./store/useAuthStore";
+import { useVideoCallStore } from "./store/useVideoCallStore";
 import {useEffect} from "react";
 
 import { Toaster } from "react-hot-toast";
+import IncomingCallModal from "./components/IncomingCallModal";
 
 const App = () => {
-  const {authUser, checkAuth, isCheckingAuth, onlineUsers} = useAuthStore();
- 
+  const {authUser, checkAuth, isCheckingAuth, onlineUsers, socket} = useAuthStore(); // <-- 3. Obtener 'socket'
+  const { setIncomingCall } = useVideoCallStore(); // <-- 4. Obtener setter
   console.log({onlineUsers});
  
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // --- 5. AÑADIR ESTE useEffect ---
+  // Listener global para llamadas entrantes
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleIncomingCall = ({ fromUser, offer }) => {
+      setIncomingCall({ fromUser, offer });
+    };
+
+    socket.on("call:incoming", handleIncomingCall);
+
+    return () => {
+      socket.off("call:incoming", handleIncomingCall);
+    };
+  }, [socket, setIncomingCall]);
+  // --- FIN DEL NUEVO useEffect ---
 
   console.log({ authUser });
 
@@ -46,8 +66,10 @@ if(isCheckingAuth && !authUser) return(
         <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
         <Route path="/tasks" element={authUser ? <TasksPage /> : <Navigate to="/login" />} />
         <Route path="/simulation" element={authUser ? <SimulationPage /> : <Navigate to="/login" />} />
+        <Route path='/videocall/:userId' element={authUser ? <VideoCallPage /> : <Navigate to='/login' />} />
       </Routes>
       <Toaster />
+      <IncomingCallModal /> 
     </div>
   );
 };
