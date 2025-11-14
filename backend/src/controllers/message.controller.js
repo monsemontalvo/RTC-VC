@@ -37,13 +37,13 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
     try {
-        const { text, image } = req.body;
-        const { id: receiverId } = req.params; // ID del receptor
-        const senderId = req.user._id; // ID del usuario logueado
+        // --- MODIFICADO ---
+        const { text, image, isEncrypted } = req.body; // 1. Recibir isEncrypted
+        const { id: receiverId } = req.params; 
+        const senderId = req.user._id; 
 
        let imageUrl;
        if(image){
-        //Subir imagen base64 a cloudinary
         const uploadResponse=await cloudinary.uploader.upload(image);
         imageUrl=uploadResponse.secure_url;
        }
@@ -53,7 +53,9 @@ export const sendMessage = async (req, res) => {
         receiverId,
         text,
         image: imageUrl,
+        isEncrypted: !!isEncrypted // 2. Guardar el estado de encriptación
        });
+       // --- FIN DE MODIFICACIÓN ---
 
        await newMessage.save();
 

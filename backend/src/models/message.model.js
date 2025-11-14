@@ -18,6 +18,12 @@ const messageSchema = new mongoose.Schema(
     image: {
         type: String,
     },
+    // --- AÑADIR ESTO ---
+    isEncrypted: {
+        type: Boolean,
+        default: false
+    }
+    // --- FIN DE LO AÑADIDO ---
   },
     {timestamps: true}
 );
