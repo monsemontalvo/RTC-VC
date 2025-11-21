@@ -3,8 +3,10 @@ import toast from "react-hot-toast";
 import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 import CryptoJS from "crypto-js"; 
+
 const ENCRYPTION_KEY = "mi-llave-secreta-123";
 
+// --- Funciones de Encriptación ---
 const encryptMessage = (text) => {
   return CryptoJS.AES.encrypt(text, ENCRYPTION_KEY).toString();
 };
@@ -32,15 +34,16 @@ const processMessages = (messages) => {
   });
 };
 
-
+// --- Store Principal ---
 export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
-  groups: [],
+  groups: [], // Estado para los grupos
   selectedChat: null, 
   isUsersLoading: false,
   isMessagesLoading: false,
   isEncryptionEnabled: false, 
+
   toggleEncryption: () => 
     set((state) => {
       const newState = !state.isEncryptionEnabled;
@@ -58,9 +61,20 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.get("/messages/users");
       set({ users: res.data });
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(error.response?.data?.message || "Error cargando usuarios");
     } finally {
       set({ isUsersLoading: false });
+    }
+  },
+
+  // --- NUEVA FUNCIÓN: Obtener Grupos ---
+  getGroups: async () => {
+    try {
+      const res = await axiosInstance.get("/groups");
+      set({ groups: res.data });
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+      // No mostramos toast error para no saturar si falla silenciosamente
     }
   },
 
@@ -70,17 +84,19 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.get(`/messages/${userId}`);
       set({ messages: processMessages(res.data) });
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(error.response?.data?.message || "Error cargando mensajes");
     } finally {
       set({ isMessagesLoading: false });
     }
   },
+
   sendMessage: async (messageData) => {
     const { selectedChat, messages, isEncryptionEnabled } = get();
 
     const dataToSend = { ...messageData };
     let originalText = dataToSend.text; 
 
+    // Lógica de encriptación antes de enviar
     if (isEncryptionEnabled && dataToSend.text) {
       dataToSend.text = encryptMessage(dataToSend.text);
       dataToSend.isEncrypted = true;
@@ -88,35 +104,97 @@ export const useChatStore = create((set, get) => ({
       dataToSend.isEncrypted = false;
     }
 
+    // Variable para manejo optimista
+    let tempMessageId = Date.now().toString();
+
     try {
-      
+      // 1. Actualización Optimista (Mostrar mensaje inmediatamente)
       const tempMessage = {
         ...dataToSend,
-        _id: Date.now().toString(), 
+        _id: tempMessageId, 
         senderId: useAuthStore.getState().authUser._id,
         receiverId: selectedChat._id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        text: originalText,
+        text: originalText, // Mostramos el texto original al usuario que envía
         isEncrypted: isEncryptionEnabled 
       };
 
       set({ messages: [...messages, tempMessage] });
 
+      // 2. Petición al Servidor
       const res = await axiosInstance.post(`/messages/send/${selectedChat._id}`, dataToSend);
 
+      // 3. Reemplazar mensaje temporal con el real del servidor
       set((state) => ({
         messages: state.messages.map((msg) =>
-          msg._id === tempMessage._id ? { ...res.data, text: originalText } : msg
+          msg._id === tempMessageId ? { ...res.data, text: originalText } : msg
         ),
       }));
 
-    } catch (error) {
-      toast.error(error.response.data.message);
+      // --- LÓGICA DE LOGROS (Notificación) ---
+      if (res.data.newAchievements && res.data.newAchievements.length > 0) {
+        res.data.newAchievements.forEach((ach) => {
+          toast.success(`🏆 ¡Logro Desbloqueado: ${ach}!`, {
+             duration: 5000,
+             style: {
+               border: '1px solid #FFD700',
+               padding: '16px',
+               color: '#713200',
+             },
+          });
+        });
+      }
+      // ---------------------------------------
 
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Error al enviar mensaje");
+      // Revertir optimista en caso de error
       set((state) => ({
-        messages: state.messages.filter((msg) => msg._id !== tempMessage._id),
+        messages: state.messages.filter((msg) => msg._id !== tempMessageId),
       }));
+    }
+  },
+
+  createGroup: async (groupName, memberIds) => {
+    try {
+        // El creador siempre es miembro, pero el backend también lo asegura
+        const groupData = {
+            name: groupName,
+            members: memberIds,
+        };
+
+        toast.loading("Creando grupo...");
+
+        // Nota: Asegúrate que la ruta coincida con tu group.route.js (/create)
+        const res = await axiosInstance.post("/groups/create", groupData);
+        const newGroup = res.data; 
+
+        toast.dismiss();
+        toast.success(`Grupo "${newGroup.name}" creado con éxito.`);
+
+        // Actualizar la lista de grupos
+        set((state) => ({ 
+            groups: [newGroup, ...state.groups] 
+        }));
+
+        // Seleccionar el nuevo grupo automáticamente
+        get().setSelectedChat(newGroup); 
+
+        // --- LÓGICA DE LOGROS (Notificación) ---
+        if (newGroup.newAchievements && newGroup.newAchievements.length > 0) {
+           newGroup.newAchievements.forEach((ach) => {
+             toast.success(`🏆 ¡Logro Desbloqueado: ${ach}!`, {
+                duration: 5000,
+                style: { border: '1px solid #FFD700', padding: '16px', color: '#713200' },
+             });
+           });
+        }
+        // ---------------------------------------
+
+    } catch (error) {
+        toast.dismiss();
+        toast.error(error.response?.data?.message || "Error al crear el grupo.");
     }
   },
 
@@ -131,8 +209,14 @@ export const useChatStore = create((set, get) => ({
 
     socket.on("newMessage", (newMessage) => {
       const { selectedChat } = get();
-      if (!selectedChat || newMessage.senderId !== selectedChat._id) return;
+      
+      // Lógica actualizada para soportar Grupos y DMs
+      // El backend ahora envía 'chatId' en el evento.
+      // Si es DM: chatId = senderId (para el receptor)
+      // Si es Grupo: chatId = groupId
+      if (!selectedChat || newMessage.chatId !== selectedChat._id) return;
 
+      // Desencriptar si es necesario al recibir
       if (newMessage.isEncrypted && newMessage.text) {
         newMessage.text = decryptMessage(newMessage.text);
       }
@@ -150,52 +234,19 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
- // useChatStore.js (Añadir en el objeto de acciones del store)
+  setSelectedChat: (chat) => { 
+    const oldChat = get().selectedChat;
 
-  createGroup: async (groupName, memberIds) => {
-    try {
-        const currentUserId = useAuthStore.getState().authUser._id;
-        // El creador siempre es miembro
-        const members = [...new Set([...memberIds, currentUserId])]; 
-
-        const groupData = {
-            name: groupName,
-            members: members,
-        };
-
-        toast.loading("Creando grupo...");
-
-        const res = await axiosInstance.post("/groups", groupData);
-        const newGroup = res.data; 
-
-        toast.dismiss();
-        toast.success(`Grupo "${newGroup.name}" creado con éxito.`);
-
-        set((state) => ({ 
-            groups: [newGroup, ...state.groups] 
-        }))
-
-        get().setSelectedChat(newGroup); 
-
-    } catch (error) {
-        toast.dismiss();
-        toast.error(error.response?.data?.message || "Error al crear el grupo.");
+    if (oldChat) {
+      get().unsubscribeFromMessages();
     }
-},
 
-setSelectedChat: (chat) => { // 'chat' puede ser un User o un Group
-  const oldChat = get().selectedChat;
+    set({ selectedChat: chat, messages: [] });
 
-  if (oldChat) {
-    get().unsubscribeFromMessages();
-  }
-
-  set({ selectedChat: chat, messages: [] });
-
-  if (chat) {
-    const chatId = chat._id;
-    get().getMessages(chatId);
-    get().subscribeToMessages();
-  }
-},
+    if (chat) {
+      const chatId = chat._id;
+      get().getMessages(chatId);
+      get().subscribeToMessages();
+    }
+  },
 }));

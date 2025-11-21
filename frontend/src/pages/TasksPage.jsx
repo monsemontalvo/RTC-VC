@@ -174,6 +174,17 @@ const TasksPage = ({ groupId }) => {
     try {
       const res = await axiosInstance.put(`${TASK_API_BASE}/${taskId}/status`, { status: newStatus });
 
+      // --- AGREGAR ESTE BLOQUE ---
+     if (res.data.newAchievements && res.data.newAchievements.length > 0) {
+        res.data.newAchievements.forEach(ach => {
+          toast.success(`🏆 ¡Logro Desbloqueado: ${ach}!`, {
+            duration: 5000,
+            style: { border: '1px solid #FFD700', color: '#713200' },
+          });
+        });
+     }
+     // ---------------------------
+     
       // Recargar todas las tareas (la forma más simple y segura)
       await fetchTasks();
       toast.success(`Tarea marcada como ${newStatus}.`);

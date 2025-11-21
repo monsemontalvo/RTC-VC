@@ -1,8 +1,7 @@
+import { unlockAchievement } from "../lib/achievementUtils.js";
 import User from '../models/user.model.js';
 import Message from '../models/message.model.js';
 import cloudinary from '../lib/cloudinary.js';
-
-
 import { getReceiverSocketId, io } from "../lib/socket.js";
 import { GroupChat } from '../models/groupChat.model.js';
 
@@ -56,61 +55,89 @@ export const getMessages = async (req, res) => {
     }
 };
 
-// ... otros imports
-// ... import { getReceiverSocketId, io } from "../lib/socket.js";
-
 export const sendMessage = async (req, res) => {
     try {
         const { text, image, isEncrypted } = req.body; 
         const { id: chatId } = req.params; // <-- Ahora es chatId (ReceiverID o GroupID)
         const senderId = req.user._id; 
 
-       // ... Lógica de Cloudinary para subir imagen (sin cambios) ...
-       let imageUrl;
-       if(image){
-        const uploadResponse=await cloudinary.uploader.upload(image);
-        imageUrl=uploadResponse.secure_url;
-       }
+        // ... Lógica de Cloudinary para subir imagen ...
+        let imageUrl;
+        if(image){
+            const uploadResponse = await cloudinary.uploader.upload(image);
+            imageUrl = uploadResponse.secure_url;
+        }
 
-       const newMessage = new Message({
-        senderId,
-        receiverId: chatId, // <-- El receiverId ahora es el ID del chat
-        text,
-        image: imageUrl,
-        isEncrypted: !!isEncrypted 
-       });
+        const newMessage = new Message({
+            senderId,
+            receiverId: chatId, // <-- El receiverId ahora es el ID del chat
+            text,
+            image: imageUrl,
+            isEncrypted: !!isEncrypted 
+        });
 
-       await newMessage.save();
+        await newMessage.save();
 
-       // 1. Lógica de Socket.io
-       // Intentamos encontrar el chat como GRUPO
-       const group = await GroupChat.findById(chatId);
-       
-       if (group) {
-           // Si es un grupo, emitir el mensaje a TODOS los participantes (excepto al que envía)
-           group.participants.forEach(participantId => {
-               if (participantId.toString() !== senderId.toString()) {
-                   const participantSocketId = getReceiverSocketId(participantId);
-                   if (participantSocketId) {
-                       io.to(participantSocketId).emit("newMessage", {...newMessage._doc, chatId: chatId}); // <-- Emitir con chatId
-                   }
-               }
-           });
-       } else {
-           // Si NO es un grupo, asumir que es un DM. receiverId = chatId.
-           const receiverSocketId = getReceiverSocketId(chatId);
-           if (receiverSocketId) {
-               io.to(receiverSocketId).emit("newMessage", {...newMessage._doc, chatId: chatId}); // <-- Emitir con chatId
-           }
-       }
-       
-       // El emisor también necesita el chatId para la lógica de suscripción.
-       // Al devolver el mensaje, se asegura de que el frontend lo maneje correctamente.
-       res.status(201).json({...newMessage._doc, chatId: chatId}); 
+        // --- LÓGICA DE LOGROS CON NOTIFICACIÓN ---
+        const newAchievements = []; // Array para guardar logros de esta petición
+
+        // 1. Actualizar contador de mensajes
+        const user = await User.findByIdAndUpdate(
+            senderId,
+            { $inc: { "stats.messagesSent": 1 } },
+            { new: true }
+        );
+
+        // 2. Logro "Agente Secreto": Primer mensaje
+        if (user.stats.messagesSent >= 1) {
+            const ach = await unlockAchievement(senderId, "Agente Secreto");
+            if (ach) newAchievements.push(ach);
+        }
+
+        // 3. Logro "Hiperconectado": 10 mensajes
+        if (user.stats.messagesSent >= 10) {
+            const ach = await unlockAchievement(senderId, "Hiperconectado");
+            if (ach) newAchievements.push(ach);
+        }
+
+        // 4. Logro "Corresponsal de Campo": Compartir ubicación
+        if (text && text.includes("google.com/maps")) {
+            const ach = await unlockAchievement(senderId, "Corresponsal de Campo");
+            if (ach) newAchievements.push(ach);
+        }
+        // -----------------------------------------
+
+        // 1. Lógica de Socket.io
+        // Intentamos encontrar el chat como GRUPO
+        const group = await GroupChat.findById(chatId);
+        
+        if (group) {
+            // Si es un grupo, emitir a TODOS los participantes (excepto al que envía)
+            group.participants.forEach(participantId => {
+                if (participantId.toString() !== senderId.toString()) {
+                    const participantSocketId = getReceiverSocketId(participantId);
+                    if (participantSocketId) {
+                        io.to(participantSocketId).emit("newMessage", {...newMessage._doc, chatId: chatId}); 
+                    }
+                }
+            });
+        } else {
+            // Si NO es un grupo, asumir que es un DM. receiverId = chatId.
+            const receiverSocketId = getReceiverSocketId(chatId);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("newMessage", {...newMessage._doc, chatId: chatId}); 
+            }
+        }
+        
+        // Enviamos el mensaje guardado Y el array de logros nuevos
+        res.status(201).json({ 
+            ...newMessage._doc, 
+            chatId: chatId, 
+            newAchievements // <--- IMPORTANTE: Enviado al frontend
+        }); 
 
     } catch (error) {
         console.log("Error in sendMessage:", error.message);
         res.status(500).json({ message: "Internal Server Error." });
     }
-};  
-
+};

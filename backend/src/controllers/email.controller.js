@@ -1,4 +1,6 @@
 import { transporter } from "../lib/nodemailer.js";
+import User from "../models/user.model.js"; // <--- IMPORTAR MODELO USER
+import { unlockAchievement } from "../lib/achievementUtils.js"; // <--- IMPORTAR UTILIDAD
 
 export const sendEmail = async (req, res) => {
   try {
@@ -34,7 +36,15 @@ export const sendEmail = async (req, res) => {
 
     await transporter.sendMail(mailOptions);
 
-    res.status(200).json({ message: "Email enviado correctamente" });
+    // --- LÓGICA DE LOGRO: CARTERO ---
+const newAchievements = [];
+    await User.findByIdAndUpdate(req.user._id, { $inc: { "stats.emailsSent": 1 } });
+    const ach = await unlockAchievement(req.user._id, "Cartero");
+    if (ach) newAchievements.push(ach);
+
+    res.status(200).json({ message: "Correo enviado", newAchievements });
+    //---------------------------------------------------------------------------------
+    
   } catch (error) {
     console.error("Error al enviar email:", error);
     res
