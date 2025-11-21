@@ -4,7 +4,6 @@ export const sendEmail = async (req, res) => {
   try {
     const { to, subject, body } = req.body;
     
-    // El usuario que envía (desde el middleware de autenticación)
     const fromUser = req.user; 
 
     if (!to || !subject || !body) {
@@ -13,12 +12,11 @@ export const sendEmail = async (req, res) => {
         .json({ message: "Faltan campos (to, subject, body)" });
     }
 
-    // Opciones del correo
     const mailOptions = {
-      from: `"${fromUser.username}" <${process.env.EMAIL_FROM}>`, // Dirección "From"
-      to: to, // Email del destinatario (el selectedUser)
-      subject: subject, // Asunto
-      text: body, // Cuerpo en texto plano
+      from: `"${fromUser.username}" <${process.env.EMAIL_FROM}>`, 
+      to: to, 
+      subject: subject, 
+      text: body, 
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
           <h2>Has recibido un mensaje de ${fromUser.username}</h2>
@@ -34,7 +32,6 @@ export const sendEmail = async (req, res) => {
       `,
     };
 
-    // Enviar el correo
     await transporter.sendMail(mailOptions);
 
     res.status(200).json({ message: "Email enviado correctamente" });

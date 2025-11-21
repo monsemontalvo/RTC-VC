@@ -41,7 +41,7 @@ const Navbar = () => {
                  `}
             >
               <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">Settings</span>
+              <span className="hidden sm:inline">Ajustes</span>
             </Link>
 
             {authUser && (
@@ -49,23 +49,23 @@ const Navbar = () => {
                 {/* --- ENLACES AÑADIDOS --- */}
                 <Link to={"/tasks"} className={"btn btn-sm gap-2"}>
                   <ListTodo className="size-5" />
-                  <span className="hidden sm:inline">Tasks</span>
+                  <span className="hidden sm:inline">Tareas</span>
                 </Link>
 
                 <Link to={"/simulation"} className={"btn btn-sm gap-2"}>
                   <Play className="size-5" />
-                  <span className="hidden sm:inline">Simulation</span>
+                  <span className="hidden sm:inline">Simulador</span>
                 </Link>
                 {/* --- FIN DE ENLACES AÑADIDOS --- */}
 
                 <Link to={"/profile"} className={`btn btn-sm gap-2`}>
                   <User className="size-5" />
-                  <span className="hidden sm:inline">Profile</span>
+                  <span className="hidden sm:inline">Perfil</span>
                 </Link>
 
                 <button className="flex gap-2 items-center" onClick={logout}>
                   <LogOut className="size-5" />
-                  <span className="hidden sm:inline">Logout</span>
+                  <span className="hidden sm:inline">Cerrar Sesión</span>
                 </button>
               </>
             )}

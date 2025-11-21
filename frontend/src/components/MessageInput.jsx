@@ -13,7 +13,7 @@ const MessageInput = () => {
   const fileInputRef = useRef(null);
 
   // --- 5. OBTENER DATOS DE LOS STORES ---
-  const { sendMessage, selectedUser } = useChatStore();
+  const { sendMessage, selectedChat } = useChatStore();
   const { authUser } = useAuthStore();
 
   const handleImageChange = (e) => {
@@ -79,7 +79,7 @@ const MessageInput = () => {
       toast.error("Escribe un mensaje para enviar por email.");
       return;
     }
-    if (!selectedUser) {
+    if (!selectedChat) {
       toast.error("No se ha seleccionado un destinatario.");
       return;
     }
@@ -89,7 +89,7 @@ const MessageInput = () => {
 
     try {
       await api.post("/email/send", {
-        to: selectedUser.email,
+        to: selectedChat.email,
         subject: `Mensaje de ${authUser.username} desde RTC-VC`,
         body: text.trim(),
       });

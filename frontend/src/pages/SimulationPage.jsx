@@ -2,7 +2,7 @@
 // Migrado a React con Tailwind CSS y daisyUI (sin archivos CSS externos)
 
 import React, { useState } from 'react';
-
+import { useAuthStore } from '../store/useAuthStore';
 // --- Lógica de Simulación (Portado de simulation.js) ---
 // Esta lógica es independiente de la UI
 const teams = [
@@ -109,11 +109,14 @@ function simulateKnockoutMatch(teamA, teamB) {
 
 // --- Componente de React ---
 const SimulationPage = () => {
+  const { awardBadge } = useAuthStore();
+
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [userPrediction, setUserPrediction] = useState(''); // Estado para tu predicción
 
   const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
 
   const runSimulation = async () => {
     setIsLoading(true);
@@ -217,6 +220,10 @@ const SimulationPage = () => {
       finalists,
       knockoutRounds['Semifinal']
     );
+
+    if (userPrediction && userPrediction === winner.name) {
+      awardBadge(); 
+    }
 
     // Actualización final con el ganador (Aparece poco a poco)
     setResults((prev) => ({ ...prev, winner: winner }));

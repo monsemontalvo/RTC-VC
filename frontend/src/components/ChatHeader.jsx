@@ -6,15 +6,15 @@ import toast from "react-hot-toast"; // Opcional: para notificar al usuario
 
 const ChatHeader = () => {
   // 2. Necesitamos 'messages' para poder guardarlos
-  const { selectedUser, setSelectedUser, messages } = useChatStore();
+  const { selectedChat, setSelectedChat, messages } = useChatStore();
   // 3. Necesitamos 'authUser' para identificar 'Yo' vs 'El otro usuario' en el txt
   const { onlineUsers, authUser } = useAuthStore();
 
   const navigate = useNavigate();
 
   const handleStartCall = () => {
-    if (!selectedUser) return;
-    navigate(`/videocall/${selectedUser._id}`);
+    if (!selectedChat) return;
+    navigate(`/videocall/${selectedChat._id}`);
   };
 
   // 4. Nueva función para descargar el chat
@@ -26,12 +26,12 @@ const ChatHeader = () => {
 
     try {
       // Construimos el contenido del archivo de texto
-      let conversationText = `Conversación con ${selectedUser.fullName}\n`;
+      let conversationText = `Conversación con ${selectedChat.fullName}\n`;
       conversationText += `Fecha de exportación: ${new Date().toLocaleString()}\n`;
       conversationText += "--------------------------------------------------\n\n";
 
       messages.forEach((msg) => {
-        const senderName = msg.senderId === authUser._id ? "Yo" : selectedUser.fullName;
+        const senderName = msg.senderId === authUser._id ? "Yo" : selectedChat.fullName;
         const time = new Date(msg.createdAt).toLocaleString();
         
         // Si es mensaje de texto
@@ -51,7 +51,7 @@ const ChatHeader = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `chat_${selectedUser.fullName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
+      link.download = `chat_${selectedChat.fullName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
       
       document.body.appendChild(link);
       link.click();
@@ -74,15 +74,15 @@ const ChatHeader = () => {
           {/* Avatar */}
           <div className="avatar">
             <div className="size-10 rounded-full relative">
-              <img src={selectedUser.profilePic || "/avatar.png"} alt={selectedUser.fullName} />
+              <img src={selectedChat.profilePic || "/avatar.png"} alt={selectedChat.fullName} />
             </div>
           </div>
 
           {/* User info */}
           <div>
-            <h3 className="font-medium">{selectedUser.fullName}</h3>
+            <h3 className="font-medium">{selectedChat.fullName}</h3>
             <p className="text-sm text-base-content/70">
-              {onlineUsers.includes(selectedUser._id) ? "Online" : "Offline"}
+              {onlineUsers.includes(selectedChat._id) ? "Online" : "Offline"}
             </p>
           </div>
         </div>
@@ -107,7 +107,7 @@ const ChatHeader = () => {
           </button>
 
           <button
-            onClick={() => setSelectedUser(null)}
+            onClick={() => setSelectedChat(null)}
             className='btn btn-ghost btn-circle'
             title='Cerrar chat'
           >

@@ -17,10 +17,16 @@ const groupChatSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+
+  tasks: [{ 
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Task',
+    default: [] // Inicializar como un array vacío
+  }]
+  // createdAt: {
+  //   type: Date,
+  //   default: Date.now
+  // }
+}, { timestamps: true });
 
 export const GroupChat = mongoose.model('GroupChat', groupChatSchema);

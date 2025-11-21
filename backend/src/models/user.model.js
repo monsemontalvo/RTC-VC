@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
+        hasWonPredictionBadge: { 
+            type: Boolean,
+            default: false,
+        },
+        
     },
     {
         timestamps: true,

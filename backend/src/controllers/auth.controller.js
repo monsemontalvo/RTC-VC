@@ -9,7 +9,7 @@ export const signup = async (req, res) => {
         if (!fullName || !email || !password) {
             return  res.status(400).json({ message: "Please enter all fields." });
         }
-        // hash password con bcrypt
+
         if (password.length < 6) {
             return res.status(400).json({ message: "Password must be at least 6 characters long." });
         }
@@ -27,7 +27,7 @@ export const signup = async (req, res) => {
         });
 
         if (newUser){
-            //generar token JWT
+
             generateToken(newUser._id, res);
             await newUser.save();
 
@@ -61,7 +61,6 @@ export const login = async(req, res) => {
             return res.status(400).json({ message: "Invalid email or password." });
         }
 
-        // If email and password are correct, generate a token
         generateToken(user._id, res);
         res.status(200).json({
             _id: user._id,

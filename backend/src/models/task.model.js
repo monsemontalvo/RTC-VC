@@ -1,4 +1,3 @@
-// backend/src/models/task.model.js (Nuevo archivo)
 import mongoose from 'mongoose';
 
 const taskSchema = new mongoose.Schema({
@@ -31,6 +30,11 @@ const taskSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  group: { 
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GroupChat',
+    required: false, 
   }
 }, { timestamps: true });
 

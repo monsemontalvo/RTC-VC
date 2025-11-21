@@ -2,13 +2,9 @@ import { create } from "zustand";
 import toast from "react-hot-toast";
 import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
-import CryptoJS from "crypto-js"; // 1. Importar crypto-js
-
-// 2. LLAVE DE ENCRIPTACIÓN (Insegura para producción, solo para demo)
-// En una app real, esta llave debería generarse y compartirse de forma segura (ej. Diffie-Hellman)
+import CryptoJS from "crypto-js"; 
 const ENCRYPTION_KEY = "mi-llave-secreta-123";
 
-// 3. Funciones de ayuda para encriptar/desencriptar
 const encryptMessage = (text) => {
   return CryptoJS.AES.encrypt(text, ENCRYPTION_KEY).toString();
 };
@@ -18,7 +14,6 @@ const decryptMessage = (ciphertext) => {
     const bytes = CryptoJS.AES.decrypt(ciphertext, ENCRYPTION_KEY);
     const originalText = bytes.toString(CryptoJS.enc.Utf8);
     if (!originalText) {
-      // Manejar el caso en que la desencriptación falla (ej. llave incorrecta)
       return "[Mensaje encriptado ilegible]";
     }
     return originalText;
@@ -28,7 +23,6 @@ const decryptMessage = (ciphertext) => {
   }
 };
 
-// 4. Función para procesar mensajes (desencriptar si es necesario)
 const processMessages = (messages) => {
   return messages.map((msg) => {
     if (msg.isEncrypted && msg.text) {
@@ -42,12 +36,11 @@ const processMessages = (messages) => {
 export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
-  selectedUser: null,
+  groups: [],
+  selectedChat: null, 
   isUsersLoading: false,
   isMessagesLoading: false,
-  isEncryptionEnabled: false, // 5. Añadir estado para el toggle
-
-  // 6. Añadir acción para el toggle
+  isEncryptionEnabled: false, 
   toggleEncryption: () => 
     set((state) => {
       const newState = !state.isEncryptionEnabled;
@@ -75,7 +68,6 @@ export const useChatStore = create((set, get) => ({
     set({ isMessagesLoading: true });
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
-      // 7. Desencriptar historial al cargar
       set({ messages: processMessages(res.data) });
     } catch (error) {
       toast.error(error.response.data.message);
@@ -84,11 +76,10 @@ export const useChatStore = create((set, get) => ({
     }
   },
   sendMessage: async (messageData) => {
-    const { selectedUser, messages, isEncryptionEnabled } = get(); // 8. Obtener estado
-    
-    // 9. Preparar data a enviar (encriptando si es necesario)
+    const { selectedChat, messages, isEncryptionEnabled } = get();
+
     const dataToSend = { ...messageData };
-    let originalText = dataToSend.text; // Guardamos el texto original para mostrarlo inmediatamente
+    let originalText = dataToSend.text; 
 
     if (isEncryptionEnabled && dataToSend.text) {
       dataToSend.text = encryptMessage(dataToSend.text);
@@ -98,26 +89,22 @@ export const useChatStore = create((set, get) => ({
     }
 
     try {
-      // Optimización: Mostrar el mensaje localmente de inmediato (con texto original)
-      // antes de esperar la respuesta del servidor.
+      
       const tempMessage = {
         ...dataToSend,
-        _id: Date.now().toString(), // ID temporal
+        _id: Date.now().toString(), 
         senderId: useAuthStore.getState().authUser._id,
-        receiverId: selectedUser._id,
+        receiverId: selectedChat._id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        text: originalText, // Usamos el texto original
-        isEncrypted: isEncryptionEnabled // Marcamos si se envió encriptado
+        text: originalText,
+        isEncrypted: isEncryptionEnabled 
       };
-      
-      // Añadimos el mensaje temporal al estado
+
       set({ messages: [...messages, tempMessage] });
 
-      // Enviamos el mensaje (potencialmente encriptado) al backend
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, dataToSend);
-      
-      // Reemplazamos el mensaje temporal con la respuesta real del servidor
+      const res = await axiosInstance.post(`/messages/send/${selectedChat._id}`, dataToSend);
+
       set((state) => ({
         messages: state.messages.map((msg) =>
           msg._id === tempMessage._id ? { ...res.data, text: originalText } : msg
@@ -126,7 +113,7 @@ export const useChatStore = create((set, get) => ({
 
     } catch (error) {
       toast.error(error.response.data.message);
-      // Si falla, eliminamos el mensaje temporal
+
       set((state) => ({
         messages: state.messages.filter((msg) => msg._id !== tempMessage._id),
       }));
@@ -134,20 +121,18 @@ export const useChatStore = create((set, get) => ({
   },
 
   subscribeToMessages: () => {
-    const { selectedUser } = get();
-    if (!selectedUser) return;
+    const { selectedChat } = get();
+    if (!selectedChat) return;
 
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
 
-    // Asegurarse de no suscribirse múltiples veces
     socket.off("newMessage");
 
     socket.on("newMessage", (newMessage) => {
-      const { selectedUser } = get(); // Volver a obtener por si cambió
-      if (!selectedUser || newMessage.senderId !== selectedUser._id) return;
+      const { selectedChat } = get();
+      if (!selectedChat || newMessage.senderId !== selectedChat._id) return;
 
-      // 11. Desencriptar mensaje del socket ANTES de guardarlo en el estado
       if (newMessage.isEncrypted && newMessage.text) {
         newMessage.text = decryptMessage(newMessage.text);
       }
@@ -165,20 +150,52 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  setSelectedUser: (selectedUser) => {
-    const oldUser = get().selectedUser;
-    
-    // Limpiar mensajes y desuscribirse del usuario anterior si había uno
-    if (oldUser) {
-      get().unsubscribeFromMessages();
-    }
-    
-    set({ selectedUser, messages: [] });
+ // useChatStore.js (Añadir en el objeto de acciones del store)
 
-    // Si seleccionamos un nuevo usuario, obtenemos sus mensajes y nos suscribimos
-    if (selectedUser) {
-      get().getMessages(selectedUser._id);
-      get().subscribeToMessages();
+  createGroup: async (groupName, memberIds) => {
+    try {
+        const currentUserId = useAuthStore.getState().authUser._id;
+        // El creador siempre es miembro
+        const members = [...new Set([...memberIds, currentUserId])]; 
+
+        const groupData = {
+            name: groupName,
+            members: members,
+        };
+
+        toast.loading("Creando grupo...");
+
+        const res = await axiosInstance.post("/groups", groupData);
+        const newGroup = res.data; 
+
+        toast.dismiss();
+        toast.success(`Grupo "${newGroup.name}" creado con éxito.`);
+
+        set((state) => ({ 
+            groups: [newGroup, ...state.groups] 
+        }))
+
+        get().setSelectedChat(newGroup); 
+
+    } catch (error) {
+        toast.dismiss();
+        toast.error(error.response?.data?.message || "Error al crear el grupo.");
     }
-  },
+},
+
+setSelectedChat: (chat) => { // 'chat' puede ser un User o un Group
+  const oldChat = get().selectedChat;
+
+  if (oldChat) {
+    get().unsubscribeFromMessages();
+  }
+
+  set({ selectedChat: chat, messages: [] });
+
+  if (chat) {
+    const chatId = chat._id;
+    get().getMessages(chatId);
+    get().subscribeToMessages();
+  }
+},
 }));
