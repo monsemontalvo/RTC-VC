@@ -26,7 +26,11 @@ app.use(cookieParser());
 // Configuración de CORS (asegúrate de que coincida con tu frontend)
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+        "http://localhost:5173", "https://rtc-vc-pzcf.onrender.com"
+    ], 
+    // OJO: Si tu frontend está servido por este mismo backend (líneas de abajo),
+    // el CORS es menos estricto, pero para sockets es vital.
     credentials: true,
   })
 );
