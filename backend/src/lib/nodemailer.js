@@ -3,8 +3,8 @@ import "dotenv/config";
 
 export const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com", // Lo ponemos directo por seguridad
-  port: 465,              // <--- CAMBIO IMPORTANTE: Puerto SSL
-  secure: true,           // <--- CAMBIO IMPORTANTE: true para 465
+  port: 587,              // <--- CAMBIO IMPORTANTE: Puerto SSL
+  secure: false,           // <--- CAMBIO IMPORTANTE: true para 465
   auth: {
     user: process.env.EMAIL_SERVICE_USER,
     pass: process.env.EMAIL_SERVICE_PASS,
