@@ -1,4 +1,3 @@
-// frontend/src/components/IncomingCallModal.jsx
 import React from "react";
 import { useVideoCallStore } from "../store/useVideoCallStore";
 import { useNavigate } from "react-router-dom";
@@ -9,49 +8,64 @@ const IncomingCallModal = () => {
   const navigate = useNavigate();
 
   const handleAccept = () => {
-    // Navegamos a la página de videollamada con el ID de quien llama
-    // No limpiamos el 'incomingCall' aquí, VideoCallPage lo necesita
-    // para saber que es el "receptor" de la llamada.
     navigate(`/videocall/${incomingCall.fromUser._id}`);
   };
 
   const handleReject = () => {
-    // (Opcional) Aquí podrías emitir un evento 'call:reject' al servidor
-    // Por ahora, solo limpiamos el estado
     clearIncomingCall();
   };
 
-  // Si no hay llamada entrante, no renderizar nada
+  // DEBUG: Esto imprimirá en la consola si el modal intenta abrirse
+  if (incomingCall) {
+      console.log("🔔 INTENTANDO MOSTRAR MODAL DE LLAMADA", incomingCall);
+  }
+
   if (!incomingCall) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="modal-box">
-        <div className="flex flex-col items-center gap-4">
+    // Usamos z-[9999] para asegurar que esté encima de TODO
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="modal-box bg-base-100 border border-base-300 shadow-2xl">
+        <div className="flex flex-col items-center gap-6 py-4">
+          
+          {/* Avatar con animación de pulso */}
           <div className="avatar">
-            <div className="w-24 rounded-full ring ring-primary ring-offset-2 ring-offset-base-100">
+            <div className="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2 relative">
               <img
                 src={incomingCall.fromUser.profilePic || "/avatar.png"}
-                alt={incomingCall.fromUser.fullName}
+                alt="Llamada"
               />
+              <span className="absolute top-0 right-0 flex h-5 w-5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-5 w-5 bg-success"></span>
+              </span>
             </div>
           </div>
-          <h3 className="text-lg font-bold">Llamada entrante de...</h3>
-          <p className="text-xl">{incomingCall.fromUser.fullName}</p>
-          <div className="modal-action flex w-full justify-around">
+
+          <div className="text-center space-y-2">
+            <h3 className="text-xl font-bold">¡Llamada Entrante!</h3>
+            <p className="text-base-content/70 text-lg">
+              <span className="font-semibold text-primary">{incomingCall.fromUser.fullName}</span> te está llamando...
+            </p>
+          </div>
+
+          <div className="flex w-full justify-center gap-8 mt-2">
+            {/* Botón Colgar */}
             <button
               onClick={handleReject}
-              className="btn btn-error btn-circle btn-lg"
+              className="btn btn-error btn-circle btn-lg shadow-lg hover:scale-110 transition-transform"
               title="Rechazar"
             >
-              <PhoneOff className="h-8 w-8" />
+              <PhoneOff className="h-8 w-8 text-white" />
             </button>
+
+            {/* Botón Contestar */}
             <button
               onClick={handleAccept}
-              className="btn btn-success btn-circle btn-lg"
-              title="Aceptar"
+              className="btn btn-success btn-circle btn-lg shadow-lg hover:scale-110 transition-transform" // btn-success es verde
+              title="Contestar"
             >
-              <Phone className="h-8 w-8" />
+              <Phone className="h-8 w-8 text-white" />
             </button>
           </div>
         </div>
@@ -60,4 +74,4 @@ const IncomingCallModal = () => {
   );
 };
 
-export default IncomingCallModal;
+export default IncomingCallModal; // <--- ¡ESTA LÍNEA ES CRÍTICA!
