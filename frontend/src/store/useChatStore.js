@@ -1,3 +1,4 @@
+// frontend/src/store/useChatStore.js
 import { create } from "zustand";
 import toast from "react-hot-toast";
 import { axiosInstance } from "../lib/axios";
@@ -67,14 +68,13 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  // --- NUEVA FUNCIÓN: Obtener Grupos ---
+  // --- Obtener Grupos ---
   getGroups: async () => {
     try {
       const res = await axiosInstance.get("/groups");
       set({ groups: res.data });
     } catch (error) {
       console.error("Error fetching groups:", error);
-      // No mostramos toast error para no saturar si falla silenciosamente
     }
   },
 
@@ -158,7 +158,6 @@ export const useChatStore = create((set, get) => ({
 
   createGroup: async (groupName, memberIds) => {
     try {
-        // El creador siempre es miembro, pero el backend también lo asegura
         const groupData = {
             name: groupName,
             members: memberIds,
@@ -166,7 +165,6 @@ export const useChatStore = create((set, get) => ({
 
         toast.loading("Creando grupo...");
 
-        // Nota: Asegúrate que la ruta coincida con tu group.route.js (/create)
         const res = await axiosInstance.post("/groups/create", groupData);
         const newGroup = res.data; 
 
@@ -181,7 +179,7 @@ export const useChatStore = create((set, get) => ({
         // Seleccionar el nuevo grupo automáticamente
         get().setSelectedChat(newGroup); 
 
-        // --- LÓGICA DE LOGROS (Notificación) ---
+        // --- LÓGICA DE LOGROS ---
         if (newGroup.newAchievements && newGroup.newAchievements.length > 0) {
            newGroup.newAchievements.forEach((ach) => {
              toast.success(`🏆 ¡Logro Desbloqueado: ${ach}!`, {
@@ -190,7 +188,7 @@ export const useChatStore = create((set, get) => ({
              });
            });
         }
-        // ---------------------------------------
+        // -----------------------
 
     } catch (error) {
         toast.dismiss();
@@ -209,16 +207,29 @@ export const useChatStore = create((set, get) => ({
 
     socket.on("newMessage", (newMessage) => {
       const { selectedChat } = get();
+      if (!selectedChat) return;
       
-      // Lógica actualizada para soportar Grupos y DMs
-      // El backend ahora envía 'chatId' en el evento.
-      // Si es DM: chatId = senderId (para el receptor)
-      // Si es Grupo: chatId = groupId
-      if (!selectedChat || newMessage.chatId !== selectedChat._id) return;
+      // --- CORRECCIÓN AQUÍ ---
+      // Verificamos si el mensaje pertenece al chat abierto actualmente.
+      // 1. Si el mensaje tiene 'chatId', es un grupo -> comparamos con selectedChat._id
+      // 2. Si NO tiene 'chatId', es DM -> comparamos senderId con selectedChat._id (porque estamos hablando con esa persona)
+      
+      const isMessageForCurrentChat = newMessage.chatId 
+          ? newMessage.chatId === selectedChat._id 
+          : newMessage.senderId === selectedChat._id;
+
+      if (!isMessageForCurrentChat) return;
 
       // Desencriptar si es necesario al recibir
       if (newMessage.isEncrypted && newMessage.text) {
-        newMessage.text = decryptMessage(newMessage.text);
+        try {
+           const bytes = CryptoJS.AES.decrypt(newMessage.text, ENCRYPTION_KEY);
+           const originalText = bytes.toString(CryptoJS.enc.Utf8);
+           // Si logra desencriptar, usamos el texto plano; si no, dejamos el original
+           if (originalText) newMessage.text = originalText;
+        } catch (e) {
+           console.error("Error desencriptando mensaje entrante:", e);
+        }
       }
 
       set({

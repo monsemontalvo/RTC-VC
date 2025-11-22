@@ -1,11 +1,11 @@
+// frontend/src/pages/VideoCallPage.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useVideoCallStore } from "../store/useVideoCallStore";
 import { useParams, useNavigate } from "react-router-dom";
 import { PhoneOff } from "lucide-react";
-// 1. IMPORTACIONES NECESARIAS
-import { axiosInstance } from "../lib/axios"; // <--- NUEVO: Para llamar al backend
-import toast from "react-hot-toast";         // <--- NUEVO: Para la notificación
+import { axiosInstance } from "../lib/axios"; 
+import toast from "react-hot-toast"; 
 
 const VideoCallPage = () => {
   const localVideoRef = useRef(null);
@@ -19,17 +19,18 @@ const VideoCallPage = () => {
   const navigate = useNavigate();
   
   const [remoteStream, setRemoteStream] = useState(null);
-  // Estado para asegurar que el logro solo se pida una vez por llamada
-  const [achievementChecked, setAchievementChecked] = useState(false); // <--- NUEVO
+  const [achievementChecked, setAchievementChecked] = useState(false); 
 
-  // ... (Toda tu lógica de setupPeerConnection, startMedia, createOffer, createAnswer se queda IGUAL) ...
-  const setupPeerConnection = () => { /* ...código existente... */ 
+  // --- Lógica de WebRTC ---
+
+  const setupPeerConnection = () => {
     const servers = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
       ],
     };
+    
     const pc = new RTCPeerConnection(servers);
 
     pc.onicecandidate = (event) => {
@@ -42,140 +43,220 @@ const VideoCallPage = () => {
     };
 
     pc.ontrack = (event) => {
+      console.log("Stream remoto recibido:", event.streams[0]);
       if (event.streams && event.streams[0]) {
         setRemoteStream(event.streams[0]);
       }
     };
 
     peerConnectionRef.current = pc;
+    return pc;
   };
 
   const startMedia = async () => {
-      // ...código existente...
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true,
-        });
-        if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-        }
-        stream.getTracks().forEach((track) => {
-            peerConnectionRef.current?.addTrack(track, stream);
-        });
-        } catch (error) {
-        console.error("Error al obtener media:", error);
-        toast.error("No se pudo acceder a la cámara o micrófono.");
-        }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      // Añadir tracks a la conexión de forma segura
+      if (peerConnectionRef.current) {
+          stream.getTracks().forEach((track) => {
+             // Verificamos si el sender ya existe para no duplicar
+             const senders = peerConnectionRef.current.getSenders();
+             const alreadyAdded = senders.find(s => s.track === track);
+             if (!alreadyAdded) {
+                 peerConnectionRef.current.addTrack(track, stream);
+             }
+          });
+      }
+    } catch (error) {
+      console.error("Error al obtener media:", error);
+      // Usamos una notificación que no rompa la app si falla
+      toast.error("No se pudo acceder a la cámara. Revisa permisos o si otra app la usa.");
+    }
   };
 
+  // (Usuario A) Inicia la llamada
   const createOffer = async (toUserId) => {
-      // ...código existente...
-      const pc = peerConnectionRef.current;
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+
+    try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         
-        // IMPORTANTE: Enviamos nuestro objeto 'authUser' para que el receptor sepa quién llama
         socket.emit("call:offer", { 
-        toUserId, 
-        offer,
-        fromUser: {
+          toUserId, 
+          offer,
+          fromUser: {
             _id: authUser._id,
             fullName: authUser.fullName,
             profilePic: authUser.profilePic
-        } 
+          } 
         });
+    } catch (err) {
+        console.error("Error creando oferta:", err);
+    }
   };
 
-  const createAnswer = async (toUserId, offer) => {
-      // ...código existente...
-      const pc = peerConnectionRef.current;
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  // (Usuario B) Responde la llamada
+  const createAnswer = async (toUserId) => {
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+
+    try {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("call:answer", { toUserId, answer });
+    } catch (err) {
+        console.error("Error creando respuesta:", err);
+    }
   };
+  
+  // --- Fin Lógica de WebRTC ---
 
   const handleHangUp = () => {
-    // ...código existente...
     if (socket) {
-        socket.emit("call:end", { toUserId: otherUserId });
-      }
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
-      // Detener cámara
-      if (localVideoRef.current && localVideoRef.current.srcObject) {
-         localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
-      }
-      clearIncomingCall();
-      navigate("/"); // Regresar al home
+      socket.emit("call:end", { toUserId: otherUserId });
+    }
+    
+    // Detener tracks locales (apagar foco de la cámara)
+    if (localVideoRef.current && localVideoRef.current.srcObject) {
+       localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+    }
+
+    // Cerrar conexión peer
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    
+    clearIncomingCall();
+    navigate("/"); 
   };
 
+  // --- EFFECT PRINCIPAL: Manejo de Señalización y Cola ---
   useEffect(() => {
-    // ... (Tu useEffect principal de sockets se queda IGUAL) ...
     if (!socket || !authUser) return;
     
-    setupPeerConnection();
+    // 1. Cola para guardar candidatos ICE que lleguen antes de tiempo
+    const candidateQueue = [];
+    let isRemoteDescriptionSet = false;
+
+    const pc = setupPeerConnection();
     startMedia();
 
-    const handleCallAccepted = async ({ answer }) => {
-      await peerConnectionRef.current?.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
+    // Función para procesar la cola
+    const processCandidateQueue = async () => {
+        if (!pc) return;
+        console.log(`Procesando ${candidateQueue.length} candidatos en cola...`);
+        while (candidateQueue.length > 0) {
+            const candidate = candidateQueue.shift();
+            try {
+                await pc.addIceCandidate(candidate);
+            } catch (e) {
+                console.error("Error procesando candidato de cola:", e);
+            }
+        }
     };
 
-    const handleIceCandidate = (event) => {
-      if (event.candidate) {
-        const candidate = new RTCIceCandidate(event.candidate);
-        peerConnectionRef.current?.addIceCandidate(candidate);
+    // Manejadores de eventos del Socket
+    const handleCallAccepted = async ({ answer }) => {
+      console.log("Llamada aceptada, configurando respuesta remota...");
+      if (!pc) return;
+      try {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          isRemoteDescriptionSet = true;
+          await processCandidateQueue(); // ¡Procesamos los pendientes!
+      } catch (err) {
+          console.error("Error setting remote description (answer):", err);
+      }
+    };
+
+    const handleIceCandidate = async (event) => {
+      const pc = peerConnectionRef.current;
+      if (!pc || !event.candidate) return;
+      
+      const candidate = new RTCIceCandidate(event.candidate);
+
+      if (isRemoteDescriptionSet && pc.remoteDescription) {
+        // Si ya está lista la conexión, agregamos directo
+        try {
+             await pc.addIceCandidate(candidate);
+        } catch (e) { console.error("Error adding ice candidate", e); }
+      } else {
+        // Si no, a la cola
+        console.log("Candidato recibido antes de tiempo. Guardando en cola.");
+        candidateQueue.push(candidate);
       }
     };
     
     const handleCallEnded = () => {
-      handleHangUp(); // Reutilizamos la lógica de colgar
+      console.log("La otra persona colgó");
+      handleHangUp(); 
     };
 
     socket.on("call:accepted", handleCallAccepted);
     socket.on("webrtc:ice-candidate", handleIceCandidate);
     socket.on("call:ended", handleCallEnded);
 
-    // LÓGICA DE DECISIÓN: ¿SOY EL QUE LLAMA O EL QUE RECIBE?
-    if (incomingCall && incomingCall.fromUser._id === otherUserId) {
-      // Soy el receptor (Usuario B) y acabo de aceptar
-      createAnswer(otherUserId, incomingCall.offer);
-      clearIncomingCall(); // Limpiamos el store
-    } else {
-      // Soy el que llama (Usuario A)
-      createOffer(otherUserId);
-    }
+    // LÓGICA DE INICIO:
+    const initializeCall = async () => {
+        if (incomingCall && incomingCall.fromUser._id === otherUserId) {
+          // SOY EL RECEPTOR
+          console.log("Recibiendo llamada...");
+          try {
+              await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+              isRemoteDescriptionSet = true;
+              await processCandidateQueue(); 
+              await createAnswer(otherUserId);
+              clearIncomingCall(); 
+          } catch (err) {
+              console.error("Error inicializando recepción:", err);
+          }
+        } else {
+          // SOY EL LLAMANTE
+          console.log("Iniciando llamada...");
+          createOffer(otherUserId);
+        }
+    };
+
+    initializeCall();
 
     return () => {
       socket.off("call:accepted", handleCallAccepted);
       socket.off("webrtc:ice-candidate", handleIceCandidate);
       socket.off("call:ended", handleCallEnded);
       
-      // Limpieza al salir del componente
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
       }
       if (localVideoRef.current && localVideoRef.current.srcObject) {
          localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
       }
     };
-  }, [socket, authUser, otherUserId, incomingCall]);
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, authUser, otherUserId]); 
+  
+  // Asignar el stream al video element cuando llegue
   useEffect(() => {
     if (remoteStream && remoteVideoRef.current) {
+      console.log("Asignando stream remoto al video tag");
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
 
-  // 2. LÓGICA DEL LOGRO "CARA A CARA" (AGREGAR ESTO)
+  // LÓGICA DEL LOGRO "CARA A CARA"
   useEffect(() => {
-    // Función auxiliar interna
     const checkVideoCallAchievement = async () => {
-        if (achievementChecked) return; // Evitar llamadas dobles
+        if (achievementChecked) return; 
 
         try {
             const res = await axiosInstance.post("/achievements/record-video-call");
@@ -188,35 +269,38 @@ const VideoCallPage = () => {
                     });
                 });
             }
-            setAchievementChecked(true); // Marcar como chequeado
+            setAchievementChecked(true); 
         } catch (error) {
             console.error("Error verificando logro de videollamada", error);
         }
     };
 
-    // Disparador: Si ya tenemos 'remoteStream', significa que la llamada conectó y hay video.
     if (remoteStream) {
         checkVideoCallAchievement();
     }
   }, [remoteStream, achievementChecked]);
-  // ------------------------------------------------
 
-  // 3. TU UI SE QUEDA IGUAL (No cambies nada en el return)
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center bg-base-200 p-4">
       <div className="relative flex h-full w-full max-w-6xl gap-4">
         {/* Video Remoto */}
-        <div className="flex-1 overflow-hidden rounded-lg bg-base-300">
+        <div className="flex-1 overflow-hidden rounded-lg bg-base-300 relative">
           <video
             ref={remoteVideoRef}
             autoPlay
             playsInline
             className="h-full w-full object-cover"
           />
+          {!remoteStream && (
+             <div className="absolute inset-0 flex items-center justify-center text-base-content/50">
+               <span className="loading loading-spinner loading-lg"></span>
+               <p className="ml-2">Conectando...</p>
+             </div>
+          )}
         </div>
         
         {/* Video Local */}
-        <div className="absolute bottom-6 right-6 w-48 overflow-hidden rounded-lg border-2 border-primary shadow-xl md:w-64">
+        <div className="absolute bottom-24 right-6 w-48 overflow-hidden rounded-lg border-2 border-primary shadow-xl md:bottom-6 md:w-64">
           <video
             ref={localVideoRef}
             autoPlay
@@ -228,8 +312,8 @@ const VideoCallPage = () => {
       </div>
       
       {/* Botón de Colgar */}
-      <div className="absolute bottom-6">
-        <button onClick={handleHangUp} className="btn btn-error btn-circle btn-lg">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 transform">
+        <button onClick={handleHangUp} className="btn btn-error btn-circle btn-lg shadow-lg">
           <PhoneOff className="h-8 w-8" />
         </button>
       </div>
