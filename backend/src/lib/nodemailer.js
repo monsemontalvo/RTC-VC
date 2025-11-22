@@ -1,9 +1,7 @@
 import nodemailer from "nodemailer";
 import "dotenv/config";
 
-// --- AGREGA ESTA LÍNEA AL PRINCIPIO ---
-console.log("📢 INICIANDO CONFIGURACIÓN DE CORREO..."); 
-// --------------------------------------
+console.log("📢 INICIANDO CONFIGURACIÓN DE CORREO (Puerto 465)...");
 
 export const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -15,13 +13,16 @@ export const transporter = nodemailer.createTransport({
   },
   tls: {
     rejectUnauthorized: false
-  }
+  },
+  // --- AGREGA ESTA LÍNEA MÁGICA ---
+  family: 4 
+  // --------------------------------
 });
 
 transporter.verify(function (error, success) {
   if (error) {
-    console.error("🚨 Error CRÍTICO de conexión SMTP:", error);
+    console.error("Error CRÍTICO de conexión SMTP:", error);
   } else {
-    console.log("✅ Servidor SMTP listo (Puerto 465)");
+    console.log("Servidor SMTP listo (Puerto 465)");
   }
 });
