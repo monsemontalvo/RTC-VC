@@ -196,7 +196,7 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  subscribeToMessages: () => {
+subscribeToMessages: () => {
     const { selectedChat } = get();
     if (!selectedChat) return;
 
@@ -208,27 +208,27 @@ export const useChatStore = create((set, get) => ({
     socket.on("newMessage", (newMessage) => {
       const { selectedChat } = get();
       if (!selectedChat) return;
-      
-      // --- CORRECCIÓN AQUÍ ---
-      // Verificamos si el mensaje pertenece al chat abierto actualmente.
-      // 1. Si el mensaje tiene 'chatId', es un grupo -> comparamos con selectedChat._id
-      // 2. Si NO tiene 'chatId', es DM -> comparamos senderId con selectedChat._id (porque estamos hablando con esa persona)
-      
-      const isMessageForCurrentChat = newMessage.chatId 
-          ? newMessage.chatId === selectedChat._id 
-          : newMessage.senderId === selectedChat._id;
+
+      // --- CORRECCIÓN CRÍTICA AQUÍ ---
+      // Verificamos si el mensaje es para el chat que tengo abierto.
+      const isMessageForCurrentChat = 
+        // Caso 1: Es un grupo y el ID del grupo coincide
+        (newMessage.chatId === selectedChat._id) ||
+        // Caso 2: Es un DM y el remitente es la persona con la que hablo
+        (newMessage.senderId === selectedChat._id);
 
       if (!isMessageForCurrentChat) return;
+      // -------------------------------
 
-      // Desencriptar si es necesario al recibir
+      // Desencriptar mensaje (si aplica)
       if (newMessage.isEncrypted && newMessage.text) {
         try {
-           const bytes = CryptoJS.AES.decrypt(newMessage.text, ENCRYPTION_KEY);
-           const originalText = bytes.toString(CryptoJS.enc.Utf8);
-           // Si logra desencriptar, usamos el texto plano; si no, dejamos el original
-           if (originalText) newMessage.text = originalText;
+            // Asegúrate de tener CryptoJS importado arriba
+            const bytes = CryptoJS.AES.decrypt(newMessage.text, ENCRYPTION_KEY);
+            const originalText = bytes.toString(CryptoJS.enc.Utf8);
+            if(originalText) newMessage.text = originalText;
         } catch (e) {
-           console.error("Error desencriptando mensaje entrante:", e);
+            console.error("Error desencriptando en vivo:", e);
         }
       }
 

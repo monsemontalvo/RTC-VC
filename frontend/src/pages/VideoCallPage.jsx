@@ -64,10 +64,9 @@ const VideoCallPage = () => {
         localVideoRef.current.srcObject = stream;
       }
       
-      // Añadir tracks a la conexión de forma segura
       if (peerConnectionRef.current) {
           stream.getTracks().forEach((track) => {
-             // Verificamos si el sender ya existe para no duplicar
+             // Evitamos duplicar tracks
              const senders = peerConnectionRef.current.getSenders();
              const alreadyAdded = senders.find(s => s.track === track);
              if (!alreadyAdded) {
@@ -77,8 +76,7 @@ const VideoCallPage = () => {
       }
     } catch (error) {
       console.error("Error al obtener media:", error);
-      // Usamos una notificación que no rompa la app si falla
-      toast.error("No se pudo acceder a la cámara. Revisa permisos o si otra app la usa.");
+      toast.error("No se pudo acceder a la cámara. Revisa permisos.");
     }
   };
 
@@ -126,12 +124,10 @@ const VideoCallPage = () => {
       socket.emit("call:end", { toUserId: otherUserId });
     }
     
-    // Detener tracks locales (apagar foco de la cámara)
     if (localVideoRef.current && localVideoRef.current.srcObject) {
        localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
     }
 
-    // Cerrar conexión peer
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
@@ -141,7 +137,7 @@ const VideoCallPage = () => {
     navigate("/"); 
   };
 
-  // --- EFFECT PRINCIPAL: Manejo de Señalización y Cola ---
+  // --- EFFECT PRINCIPAL: Manejo de Señalización y Cola (CORREGIDO) ---
   useEffect(() => {
     if (!socket || !authUser) return;
     
@@ -155,7 +151,6 @@ const VideoCallPage = () => {
     // Función para procesar la cola
     const processCandidateQueue = async () => {
         if (!pc) return;
-        console.log(`Procesando ${candidateQueue.length} candidatos en cola...`);
         while (candidateQueue.length > 0) {
             const candidate = candidateQueue.shift();
             try {
@@ -168,7 +163,6 @@ const VideoCallPage = () => {
 
     // Manejadores de eventos del Socket
     const handleCallAccepted = async ({ answer }) => {
-      console.log("Llamada aceptada, configurando respuesta remota...");
       if (!pc) return;
       try {
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -186,19 +180,16 @@ const VideoCallPage = () => {
       const candidate = new RTCIceCandidate(event.candidate);
 
       if (isRemoteDescriptionSet && pc.remoteDescription) {
-        // Si ya está lista la conexión, agregamos directo
         try {
              await pc.addIceCandidate(candidate);
         } catch (e) { console.error("Error adding ice candidate", e); }
       } else {
-        // Si no, a la cola
-        console.log("Candidato recibido antes de tiempo. Guardando en cola.");
+        // Si no está listo, A LA COLA
         candidateQueue.push(candidate);
       }
     };
     
     const handleCallEnded = () => {
-      console.log("La otra persona colgó");
       handleHangUp(); 
     };
 
@@ -210,7 +201,6 @@ const VideoCallPage = () => {
     const initializeCall = async () => {
         if (incomingCall && incomingCall.fromUser._id === otherUserId) {
           // SOY EL RECEPTOR
-          console.log("Recibiendo llamada...");
           try {
               await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
               isRemoteDescriptionSet = true;
@@ -222,7 +212,6 @@ const VideoCallPage = () => {
           }
         } else {
           // SOY EL LLAMANTE
-          console.log("Iniciando llamada...");
           createOffer(otherUserId);
         }
     };
@@ -245,36 +234,28 @@ const VideoCallPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, authUser, otherUserId]); 
   
-  // Asignar el stream al video element cuando llegue
   useEffect(() => {
     if (remoteStream && remoteVideoRef.current) {
-      console.log("Asignando stream remoto al video tag");
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
 
-  // LÓGICA DEL LOGRO "CARA A CARA"
+  // LÓGICA DE LOGROS (Sin cambios)
   useEffect(() => {
     const checkVideoCallAchievement = async () => {
         if (achievementChecked) return; 
-
         try {
             const res = await axiosInstance.post("/achievements/record-video-call");
-            
             if (res.data.newAchievements?.length > 0) {
                 res.data.newAchievements.forEach(ach => {
-                    toast.success(`🏆 ¡Logro Desbloqueado: ${ach}!`, {
-                        duration: 5000,
-                        style: { border: '1px solid #FFD700', padding: '16px', color: '#713200' },
-                    });
+                    toast.success(`🏆 ¡Logro Desbloqueado: ${ach}!`);
                 });
             }
             setAchievementChecked(true); 
         } catch (error) {
-            console.error("Error verificando logro de videollamada", error);
+            console.error("Error verificando logro", error);
         }
     };
-
     if (remoteStream) {
         checkVideoCallAchievement();
     }
