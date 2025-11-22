@@ -15,18 +15,17 @@ import { useVideoCallStore } from "./store/useVideoCallStore";
 import {useEffect} from "react";
 
 import { Toaster } from "react-hot-toast";
-import IncomingCallModal from "./components/IncomingCallModal";
+import IncomingCallModal from "./components/IncomingCallModal"; // <--- Ya lo tienes importado
 
 const App = () => {
-  const {authUser, checkAuth, isCheckingAuth, onlineUsers, socket} = useAuthStore(); // <-- 3. Obtener 'socket'
-  const { setIncomingCall } = useVideoCallStore(); // <-- 4. Obtener setter
+  const {authUser, checkAuth, isCheckingAuth, onlineUsers, socket} = useAuthStore();
+  const { setIncomingCall } = useVideoCallStore();
   console.log({onlineUsers});
  
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  // --- 5. AÑADIR ESTE useEffect ---
   // Listener global para llamadas entrantes
   useEffect(() => {
     if (!socket) return;
@@ -41,23 +40,23 @@ const App = () => {
       socket.off("call:incoming", handleIncomingCall);
     };
   }, [socket, setIncomingCall]);
-  // --- FIN DEL NUEVO useEffect ---
 
   console.log({ authUser });
 
-if(isCheckingAuth && !authUser) return(
-  <div className="flex gap-2 items-center justify-center min-h-screen">
-    <span className="loading loading-dots loading-xs"></span>
-    <span className="loading loading-dots loading-sm"></span>
-    <span className="loading loading-dots loading-md"></span>
-    <span className="loading loading-dots loading-lg"></span>
-    <span className="loading loading-dots loading-xl"></span>
-  </div>
-);
+  if(isCheckingAuth && !authUser) return(
+    <div className="flex gap-2 items-center justify-center min-h-screen">
+      <span className="loading loading-dots loading-xs"></span>
+      <span className="loading loading-dots loading-sm"></span>
+      <span className="loading loading-dots loading-md"></span>
+      <span className="loading loading-dots loading-lg"></span>
+      <span className="loading loading-dots loading-xl"></span>
+    </div>
+  );
 
   return (
     <div data-theme="dark" className="min-h-screen bg-base-100">
       <Navbar />
+      
       <Routes>
         <Route path="/" element={authUser ? <HomePage /> : <Navigate to="/login" />} />
         <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
@@ -68,8 +67,13 @@ if(isCheckingAuth && !authUser) return(
         <Route path="/simulation" element={authUser ? <SimulationPage /> : <Navigate to="/login" />} />
         <Route path='/videocall/:userId' element={authUser ? <VideoCallPage /> : <Navigate to='/login' />} />
       </Routes>
+
       <Toaster />
+      
+      {/* --- ¡ESTO ES LO QUE FALTABA! --- */}
       <IncomingCallModal /> 
+      {/* ------------------------------- */}
+      
     </div>
   );
 };
