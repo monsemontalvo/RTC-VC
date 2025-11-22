@@ -20,6 +20,10 @@ dotenv.config();
 const PORT = process.env.PORT || 5003;
 const __dirname = path.resolve();
 
+// --- AGREGAR ESTA LÍNEA AQUÍ ---
+app.set("trust proxy", 1); // <--- ¡ESTO ARREGLA EL PROBLEMA DE COOKIES EN RENDER!
+// -------------------------------
+
 app.use(express.json({ limit: "10mb" })); // Aumentado para imágenes base64
 app.use(cookieParser());
 

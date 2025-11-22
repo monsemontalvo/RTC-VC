@@ -7,9 +7,9 @@ export const generateToken = (userId, res) => {
     });
     res.cookie("jwt", token, {
         maxAge: 7*24*60*60*1000, //7 days
-        httpOnly: true, //Previene ataques XSS cross-site scripting
-        sameSite: "strict", //Protección CSRF (cross-site request forgery)
-        secure: process.env.NODE_ENV !== 'development', // Solo en HTTPS en producción
+        httpOnly: true, 
+        sameSite: "lax", // <--- CAMBIA 'strict' POR 'lax' PARA MAYOR ESTABILIDAD
+        secure: process.env.NODE_ENV !== 'development', 
     });
     return token;
 };
