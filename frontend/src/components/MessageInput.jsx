@@ -73,7 +73,7 @@ const MessageInput = () => {
     );
   };
 
-  // --- 6. NUEVA FUNCIÓN PARA ENVIAR EMAIL ---
+  // --- 6. FUNCIÓN CORREGIDA PARA ENVIAR EMAIL ---
   const handleSendEmail = async () => {
     if (!text.trim()) {
       toast.error("Escribe un mensaje para enviar por email.");
@@ -84,22 +84,29 @@ const MessageInput = () => {
       return;
     }
 
+    // VALIDACIÓN EXTRA: Verificar si el chat seleccionado tiene email (es un usuario)
+    if (!selectedChat.email) {
+        toast.error("No se puede enviar email a un grupo, solo a usuarios.");
+        return;
+    }
+
     setIsSendingEmail(true);
     const toastId = toast.loading("Enviando email...");
 
     try {
       await api.post("/email/send", {
         to: selectedChat.email,
-        subject: `Mensaje de ${authUser.username} desde RTC-VC`,
+        // CORRECCIÓN: Asegúrate de usar fullName en el frontend también si lo tienes
+        subject: `Mensaje de ${authUser.fullName} desde RTC-VC`, 
         body: text.trim(),
       });
 
       toast.success("Email enviado correctamente", { id: toastId });
-      // Limpiamos el input después de enviar
       setText("");
     } catch (error) {
       console.error("Failed to send email:", error);
-      toast.error("No se pudo enviar el email.", { id: toastId });
+      // Mostrar el mensaje de error real del backend si existe
+      toast.error(error.response?.data?.message || "No se pudo enviar el email.", { id: toastId });
     } finally {
       setIsSendingEmail(false);
     }
