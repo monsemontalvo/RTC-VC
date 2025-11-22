@@ -1,6 +1,6 @@
 import { transporter } from "../lib/nodemailer.js";
-import User from "../models/user.model.js"; // <--- IMPORTAR MODELO USER
-import { unlockAchievement } from "../lib/achievementUtils.js"; // <--- IMPORTAR UTILIDAD
+import User from "../models/user.model.js"; 
+import { unlockAchievement } from "../lib/achievementUtils.js"; 
 
 export const sendEmail = async (req, res) => {
   try {
@@ -15,14 +15,15 @@ export const sendEmail = async (req, res) => {
     }
 
     const mailOptions = {
-      from: `"${fromUser.username}" <${process.env.EMAIL_FROM}>`, 
+      // CORRECCIÓN AQUÍ: Cambiado fromUser.username a fromUser.fullName
+      from: `"${fromUser.fullName}" <${process.env.EMAIL_FROM}>`, 
       to: to, 
       subject: subject, 
       text: body, 
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <h2>Has recibido un mensaje de ${fromUser.username}</h2>
-          <p><strong>Email:</strong> ${fromUser.email}</p>
+          <h2>Has recibido un mensaje de ${fromUser.fullName}</h2> 
+          <p><strong>Email de contacto:</strong> ${fromUser.email}</p>
           <hr>
           <h3>Mensaje:</h3>
           <p style="white-space: pre-wrap;">${body}</p>
@@ -36,14 +37,13 @@ export const sendEmail = async (req, res) => {
 
     await transporter.sendMail(mailOptions);
 
-    // --- LÓGICA DE LOGRO: CARTERO ---
-const newAchievements = [];
+    // LÓGICA DE LOGRO: CARTERO
+    const newAchievements = [];
     await User.findByIdAndUpdate(req.user._id, { $inc: { "stats.emailsSent": 1 } });
     const ach = await unlockAchievement(req.user._id, "Cartero");
     if (ach) newAchievements.push(ach);
 
-    res.status(200).json({ message: "Correo enviado", newAchievements });
-    //---------------------------------------------------------------------------------
+    res.status(200).json({ message: "Correo enviado con éxito", newAchievements });
     
   } catch (error) {
     console.error("Error al enviar email:", error);
