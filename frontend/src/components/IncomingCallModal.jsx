@@ -20,15 +20,15 @@ const IncomingCallModal = () => {
       console.log("🔔 INTENTANDO MOSTRAR MODAL DE LLAMADA", incomingCall);
   }
 
-  if (!incomingCall) return null;
+ if (!incomingCall) return null;
 
   return (
-    // Usamos z-[9999] para asegurar que esté encima de TODO
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="modal-box bg-base-100 border border-base-300 shadow-2xl">
+    
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-60">
+      
+      {}
+      <div className="modal-box bg-base-100 border border-base-300 shadow-2xl relative z-20 opacity-100">
         <div className="flex flex-col items-center gap-6 py-4">
-          
-          {/* Avatar con animación de pulso */}
           <div className="avatar">
             <div className="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2 relative">
               <img
@@ -74,4 +74,4 @@ const IncomingCallModal = () => {
   );
 };
 
-export default IncomingCallModal; // <--- ¡ESTA LÍNEA ES CRÍTICA!
+export default IncomingCallModal;
